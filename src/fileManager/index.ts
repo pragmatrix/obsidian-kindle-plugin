@@ -17,7 +17,10 @@ export default class FileManager {
   public getKindleFile(book: Book): KindleFile | undefined {
     const allSyncedFiles = this.getKindleFiles();
 
-    const kindleFile = allSyncedFiles.find((file) => file.frontmatter.bookId === book.id);
+    const kindleFile = allSyncedFiles.find(
+      (file) =>
+        file.frontmatter.bookId === book.id || (book.asin && file.frontmatter.asin === book.asin)
+    );
 
     return kindleFile == null ? undefined : { ...kindleFile, book };
   }
