@@ -37,14 +37,12 @@ export const parseToDateString = (kindleDate: string, region: AmazonAccountRegio
 
       // Fallback: Try parsing the full string if the substring failed or if format changed
       if (!date.isValid()) {
-        // console.log(`[Sync Debug] Date parse fallback for: "${kindleDate}"`);
         date = moment(kindleDate, ['MMM DD, YYYY', 'YYYY-MM-DD', 'DD MMM YYYY']);
       }
     }
   }
 
   if (!date.isValid()) {
-    // console.log(`[Sync Debug] FAILED to parse date: "${kindleDate}" (Region: ${region})`);
     return null;
   }
 
