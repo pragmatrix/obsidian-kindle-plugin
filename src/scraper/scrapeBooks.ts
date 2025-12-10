@@ -14,19 +14,41 @@ import { loadRemoteDom } from './loadRemoteDom';
  * This method will parse this string and return a valid Date object
  */
 export const parseToDateString = (kindleDate: string, region: AmazonAccountRegion): Date => {
+  if (!kindleDate) {
+    return null;
+  }
+
+  let date: moment.Moment;
+
   switch (region) {
     case 'japan': {
       const amazonDateString = kindleDate.substring(0, kindleDate.indexOf(' '));
-      return moment(amazonDateString, 'YYYY MM DD', 'ja').toDate();
+      date = moment(amazonDateString, 'YYYY MM DD', 'ja');
+      break;
     }
     case 'france': {
-      return moment(kindleDate, 'MMMM D, YYYY', 'fr').toDate();
+      date = moment(kindleDate, 'MMMM D, YYYY', 'fr');
+      break;
     }
     default: {
+      // Try standard format "Sunday October 24, 2021" -> "October 24, 2021"
       const amazonDateString = kindleDate.substr(kindleDate.indexOf(' ') + 1);
-      return moment(amazonDateString, 'MMM DD, YYYY').toDate();
+      date = moment(amazonDateString, 'MMM DD, YYYY');
+
+      // Fallback: Try parsing the full string if the substring failed or if format changed
+      if (!date.isValid()) {
+        // console.log(`[Sync Debug] Date parse fallback for: "${kindleDate}"`);
+        date = moment(kindleDate, ['MMM DD, YYYY', 'YYYY-MM-DD', 'DD MMM YYYY']);
+      }
     }
   }
+
+  if (!date.isValid()) {
+    // console.log(`[Sync Debug] FAILED to parse date: "${kindleDate}" (Region: ${region})`);
+    return null;
+  }
+
+  return date.toDate();
 };
 
 export const parseAuthor = (scrapedAuthor: string): string => {

@@ -1,7 +1,7 @@
 import { MetadataCache, normalizePath, TAbstractFile, TFile, TFolder, Vault } from 'obsidian';
 
 import type { Book, KindleFile, KindleFrontmatter } from '~/models';
-import { mergeFrontmatter } from '~/utils';
+import { areBooksSame,mergeFrontmatter } from '~/utils';
 
 import { bookFilePath, bookToFrontMatter, frontMatterToBook } from './mappers';
 
@@ -17,10 +17,7 @@ export default class FileManager {
   public getKindleFile(book: Book): KindleFile | undefined {
     const allSyncedFiles = this.getKindleFiles();
 
-    const kindleFile = allSyncedFiles.find(
-      (file) =>
-        file.frontmatter.bookId === book.id || (book.asin && file.frontmatter.asin === book.asin)
-    );
+    const kindleFile = allSyncedFiles.find((file) => areBooksSame(file.book, book));
 
     return kindleFile == null ? undefined : { ...kindleFile, book };
   }
@@ -35,10 +32,32 @@ export default class FileManager {
     const fileCache = this.metadataCache.getFileCache(file);
 
     // File cache can be undefined if this file was just created and not yet cached by Obsidian
-    const kindleFrontmatter = fileCache?.frontmatter?.[SyncingStateKey] as KindleFrontmatter;
+    const frontmatter = fileCache?.frontmatter;
+    let kindleFrontmatter = frontmatter?.[SyncingStateKey] as KindleFrontmatter;
 
     if (kindleFrontmatter == null) {
-      return undefined;
+      // Fallback: If no kindle-sync key, try to construct it from root frontmatter
+      // This supports files created by older versions or other tools
+      if (frontmatter && (frontmatter.asin || frontmatter.bookId)) {
+        kindleFrontmatter = {
+          bookId: frontmatter.bookId as string,
+          title: frontmatter.title as string,
+          author: frontmatter.author as string,
+          asin: frontmatter.asin as string,
+          lastAnnotatedDate: frontmatter.lastAnnotatedDate as string,
+          bookImageUrl: frontmatter.bookImageUrl as string,
+          highlightsCount: frontmatter.highlightsCount as number,
+        };
+      } else {
+        return undefined;
+      }
+    }
+
+    // Ensure ASIN is read from the root frontmatter if not present in the nested object
+    // Some older versions or manual edits might have placed ASIN at the root
+    if (!kindleFrontmatter.asin && frontmatter.asin) {
+      // console.log(`[Sync Debug] Found ASIN in root frontmatter for "${file.path}": ${frontmatter.asin}`);
+      kindleFrontmatter.asin = frontmatter.asin as string;
     }
 
     const book = frontMatterToBook(kindleFrontmatter);
