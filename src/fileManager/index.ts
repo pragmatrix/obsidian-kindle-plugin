@@ -15,6 +15,24 @@ export default class FileManager {
   }
 
   public getKindleFile(book: Book): KindleFile | undefined {
+    // Optimization: Try to find the file at the expected path first
+    // This avoids scanning the entire vault if the file is where we expect it to be
+    try {
+      const expectedPath = normalizePath(bookFilePath(book));
+      const fileAtExpectedPath = this.vault.getAbstractFileByPath(expectedPath);
+
+      if (fileAtExpectedPath instanceof TFile) {
+        const kindleFile = this.mapToKindleFile(fileAtExpectedPath);
+        if (kindleFile && areBooksSame(kindleFile.book, book)) {
+          return { ...kindleFile, book };
+        }
+      }
+    } catch (e) {
+      // Ignore errors in optimization path
+      console.warn('Error in getKindleFile optimization:', e);
+    }
+
+    // Fallback: Scan all files (slow)
     const allSyncedFiles = this.getKindleFiles();
 
     const kindleFile = allSyncedFiles.find((file) => areBooksSame(file.book, book));
