@@ -1,7 +1,7 @@
 import { MetadataCache, normalizePath, TAbstractFile, TFile, TFolder, Vault } from 'obsidian';
 
 import type { Book, KindleFile, KindleFrontmatter } from '~/models';
-import { mergeFrontmatter } from '~/utils';
+import { areBooksSame,mergeFrontmatter } from '~/utils';
 
 import { bookFilePath, bookToFrontMatter, frontMatterToBook } from './mappers';
 
@@ -15,9 +15,27 @@ export default class FileManager {
   }
 
   public getKindleFile(book: Book): KindleFile | undefined {
+    // Optimization: Try to find the file at the expected path first
+    // This avoids scanning the entire vault if the file is where we expect it to be
+    try {
+      const expectedPath = normalizePath(bookFilePath(book));
+      const fileAtExpectedPath = this.vault.getAbstractFileByPath(expectedPath);
+
+      if (fileAtExpectedPath instanceof TFile) {
+        const kindleFile = this.mapToKindleFile(fileAtExpectedPath);
+        if (kindleFile && areBooksSame(kindleFile.book, book)) {
+          return { ...kindleFile, book };
+        }
+      }
+    } catch (e) {
+      // Ignore errors in optimization path
+      console.warn('Error in getKindleFile optimization:', e);
+    }
+
+    // Fallback: Scan all files (slow)
     const allSyncedFiles = this.getKindleFiles();
 
-    const kindleFile = allSyncedFiles.find((file) => file.frontmatter.bookId === book.id);
+    const kindleFile = allSyncedFiles.find((file) => areBooksSame(file.book, book));
 
     return kindleFile == null ? undefined : { ...kindleFile, book };
   }
@@ -32,10 +50,32 @@ export default class FileManager {
     const fileCache = this.metadataCache.getFileCache(file);
 
     // File cache can be undefined if this file was just created and not yet cached by Obsidian
-    const kindleFrontmatter = fileCache?.frontmatter?.[SyncingStateKey] as KindleFrontmatter;
+    const frontmatter = fileCache?.frontmatter;
+    let kindleFrontmatter = frontmatter?.[SyncingStateKey] as KindleFrontmatter;
 
     if (kindleFrontmatter == null) {
-      return undefined;
+      // Fallback: If no kindle-sync key, try to construct it from root frontmatter
+      // This supports files created by older versions or other tools
+      if (frontmatter && (frontmatter.asin || frontmatter.bookId)) {
+        kindleFrontmatter = {
+          bookId: frontmatter.bookId as string,
+          title: frontmatter.title as string,
+          author: frontmatter.author as string,
+          asin: frontmatter.asin as string,
+          lastAnnotatedDate: frontmatter.lastAnnotatedDate as string,
+          bookImageUrl: frontmatter.bookImageUrl as string,
+          highlightsCount: frontmatter.highlightsCount as number,
+        };
+      } else {
+        return undefined;
+      }
+    }
+
+    // Ensure ASIN is read from the root frontmatter if not present in the nested object
+    // Some older versions or manual edits might have placed ASIN at the root
+    if (!kindleFrontmatter.asin && frontmatter.asin) {
+      // console.log(`[Sync Debug] Found ASIN in root frontmatter for "${file.path}": ${frontmatter.asin}`);
+      kindleFrontmatter.asin = frontmatter.asin as string;
     }
 
     const book = frontMatterToBook(kindleFrontmatter);

@@ -52,6 +52,15 @@ export default class SyncManager {
 
     if (diffs.length > 0) {
       await diffManager.applyDiffs(remoteBook, remoteHighlights, diffs);
+    } else {
+      // Even if there are no new highlights, we might need to update the metadata
+      // (e.g. lastAnnotatedDate) to prevent constant re-syncing.
+      await this.fileManager.updateFile(
+        file,
+        remoteBook,
+        await this.fileManager.readFile(file),
+        remoteHighlights.length
+      );
     }
 
     return diffs;

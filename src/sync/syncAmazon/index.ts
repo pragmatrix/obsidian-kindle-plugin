@@ -54,7 +54,7 @@ export default class SyncAmazon {
 
       ee.emit('resyncComplete', file, diffs.length);
     } catch (error) {
-      console.error('Error resyncing higlights for file', file, error);
+      console.error('Error resyncing highlights for file', file, error);
       ee.emit('resyncFailure', file, String(error));
     }
   }
