@@ -26,6 +26,12 @@ export default class AmazonLoginModal {
       show: false,
     });
 
+    // Obsidian attaches a 'will-navigate' guard to every web contents it sees.
+    // The guard cancels each navigation that the page starts itself, such as
+    // submitting the sign-in form, and opens that URL in the default browser.
+    // The sign-in flow has to stay inside this window, so the guard is removed.
+    this.modal.webContents.removeAllListeners('will-navigate');
+
     // We can only change title after page is loaded since HTML page has its own title
     this.modal.once('ready-to-show', () => {
       this.modal.setTitle('Connect your Amazon account to Obsidian');
